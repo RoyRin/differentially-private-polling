@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Differentially Private Polling</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        .container { max-width: 640px; margin: 0 auto; }
+
+        /* Header with epsilon selector */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.3rem;
+        }
+        .header-left { flex: 1; }
+        .header-left h1 { font-size: 1.8rem; color: #fff; }
+        .epsilon-picker {
+            background: #1a1a2e;
+            border: 1px solid #2a2a4a;
+            border-radius: 10px;
+            padding: 0.6rem 0.8rem;
+            text-align: center;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+        .epsilon-picker .label {
+            font-size: 0.7rem;
+            color: #888;
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.05em;
+        }
+        .epsilon-options {
+            display: flex;
+            gap: 0.3rem;
+        }
+        .eps-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.35rem 0.5rem;
+            background: #252545;
+            border: 1.5px solid #3a3a6a;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 48px;
+        }
+        .eps-btn:hover { border-color: #6c6cff; }
+        .eps-btn.active { background: #3a3a7a; border-color: #6c6cff; }
+        .eps-btn .eps-val {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #fff;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        .eps-btn .eps-label {
+            font-size: 0.6rem;
+            margin-top: 0.15rem;
+        }
+        .eps-btn.privacy-strong .eps-label { color: #4caf50; }
+        .eps-btn.privacy-good .eps-label { color: #8bc34a; }
+        .eps-btn.privacy-moderate .eps-label { color: #ffeb3b; }
+        .eps-btn.privacy-low .eps-label { color: #ff9800; }
+        .eps-btn.privacy-minimal .eps-label { color: #ef5350; }
+
+        .subtitle {
+            color: #888;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: #1a1a2e;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: #b8b8ff;
+        }
+
+        /* Question selector */
+        .question-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0;
+        }
+        .question-tab {
+            padding: 0.4rem 0.8rem;
+            background: #252545;
+            border: 1px solid #3a3a6a;
+            border-radius: 6px;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .question-tab:hover { border-color: #6c6cff; color: #ccc; }
+        .question-tab.active { background: #3a3a7a; border-color: #6c6cff; color: #fff; }
+        .question-tab.answered {
+            opacity: 0.5;
+            position: relative;
+        }
+        .question-tab.answered::after {
+            content: " \2713";
+            color: #4caf50;
+        }
+
+        /* Question display */
+        .question-text {
+            font-size: 1.3rem;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+
+        /* Answer buttons */
+        .answer-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+        .answer-btn {
+            padding: 0.8rem 2.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: 2px solid #3a3a6a;
+            border-radius: 8px;
+            background: #252545;
+            color: #ccc;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .answer-btn:hover { border-color: #6c6cff; color: #fff; }
+        .answer-btn.selected-yes { background: #1a4a2a; border-color: #4caf50; color: #4caf50; }
+        .answer-btn.selected-no { background: #4a1a1a; border-color: #ef5350; color: #ef5350; }
+
+        /* Submit */
+        .submit-btn {
+            display: block;
+            width: 100%;
+            padding: 0.9rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: #4a4aaa;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .submit-btn:hover { background: #5a5acc; }
+        .submit-btn:disabled { background: #2a2a4a; color: #555; cursor: not-allowed; }
+
+        /* Already answered */
+        .already-answered {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: #888;
+        }
+        .already-answered .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .already-answered p { margin-bottom: 0.5rem; }
+        .already-answered .small { font-size: 0.8rem; color: #555; }
+
+        /* Result reveal */
+        .result-reveal {
+            display: none;
+            text-align: center;
+            padding: 1.5rem;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        .result-reveal h3 { font-size: 1.1rem; margin-bottom: 1rem; color: #b8b8ff; }
+        .result-comparison {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+        }
+        .result-box {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            min-width: 120px;
+        }
+        .result-box .label { font-size: 0.8rem; color: #888; margin-bottom: 0.3rem; }
+        .result-box .value { font-size: 1.5rem; font-weight: 700; }
+        .result-box.your-answer { background: #1a2a3a; }
+        .result-box.recorded { background: #2a1a3a; }
+        .flipped-notice {
+            font-size: 0.95rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+        .flipped-notice.was-flipped { background: #3a2a1a; color: #ffb74d; }
+        .flipped-notice.not-flipped { background: #1a3a2a; color: #81c784; }
+        .result-meta { font-size: 0.8rem; color: #666; margin-top: 0.5rem; }
+
+        /* Aggregate results */
+        .results-bar {
+            display: flex;
+            height: 36px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+            background: #252545;
+        }
+        .results-bar .yes-bar {
+            background: #4caf50;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; font-size: 0.85rem; color: #fff;
+            transition: width 0.5s;
+        }
+        .results-bar .no-bar {
+            background: #ef5350;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; font-size: 0.85rem; color: #fff;
+            transition: width 0.5s;
+        }
+        .results-meta { text-align: center; font-size: 0.85rem; color: #888; }
+        .no-results { text-align: center; color: #666; padding: 1rem; }
+
+        /* Info card */
+        .info-card { font-size: 0.88rem; color: #999; line-height: 1.6; }
+        .info-card p { margin-bottom: 0.8rem; }
+        .info-card strong { color: #b8b8ff; }
+        .info-card code {
+            background: #252545;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.85em;
+            color: #6c6cff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header with epsilon picker top-right -->
+        <div class="header">
+            <div class="header-left">
+                <h1>Differentially Private Polling</h1>
+            </div>
+            <div class="epsilon-picker">
+                <div class="label">&epsilon; used for differential privacy (privacy level)</div>
+                <div class="epsilon-options" id="epsilonOptions"></div>
+            </div>
+        </div>
+        <p class="subtitle">Your answer is protected by randomized response</p>
+
+        <!-- Question selector -->
+        <div class="card">
+            <h2>Choose a question</h2>
+            <div class="question-tabs" id="questionTabs"></div>
+        </div>
+
+        <!-- Voting card -->
+        <div class="card" id="voteCard">
+            <div class="question-text" id="questionText"></div>
+
+            <div id="voteUI">
+                <div class="answer-buttons">
+                    <button class="answer-btn" id="btnYes" onclick="selectAnswer('yes')">Yes</button>
+                    <button class="answer-btn" id="btnNo" onclick="selectAnswer('no')">No</button>
+                </div>
+                <button class="submit-btn" id="submitBtn" disabled onclick="submitVote()">Select an answer first</button>
+            </div>
+
+            <div class="already-answered" id="alreadyAnswered" style="display:none;">
+                <div class="icon">&#10003;</div>
+                <p>You've already answered this question.</p>
+                <p class="small">Each person should only answer once per question to keep results meaningful.</p>
+            </div>
+
+            <div class="result-reveal" id="resultReveal">
+                <h3>Your response has been recorded</h3>
+                <div class="result-comparison">
+                    <div class="result-box your-answer">
+                        <div class="label">Your answer</div>
+                        <div class="value" id="revealTrue"></div>
+                    </div>
+                    <div class="result-box recorded">
+                        <div class="label">What was recorded</div>
+                        <div class="value" id="revealRecorded"></div>
+                    </div>
+                </div>
+                <div class="flipped-notice" id="flippedNotice"></div>
+                <div class="result-meta" id="resultMeta"></div>
+            </div>
+        </div>
+
+        <!-- Aggregate results -->
+        <div class="card">
+            <h2>Aggregate Results (noisy)</h2>
+            <p style="font-size: 0.82rem; color: #888; margin-bottom: 1rem;">
+                Only responses from 1+ hour ago are shown, so that your submission
+                cannot be correlated with the results updating in real time.
+            </p>
+            <div id="aggregateResults">
+                <div class="no-results">No responses yet. Be the first!</div>
+            </div>
+        </div>
+
+        <!-- How it works -->
+        <div class="card info-card">
+            <h2>How it works</h2>
+            <p>
+                This poll uses <strong>randomized response</strong>, a technique for
+                <strong>differential privacy</strong>. When you submit your answer, a coin is flipped:
+            </p>
+            <p>
+                With probability <code>p = e<sup>&epsilon;</sup> / (1 + e<sup>&epsilon;</sup>)</code>, your
+                <em>true</em> answer is recorded. Otherwise, the <em>opposite</em> answer is recorded.
+            </p>
+            <p>
+                This means no one can know for certain what your true answer was &mdash; you have
+                <strong>plausible deniability</strong>. A lower &epsilon; means more privacy (more randomness)
+                but noisier aggregate results.
+            </p>
+            <p>
+                <strong>The randomization is done entirely in your browser.</strong> Your true answer
+                is never sent to the server &mdash; only the (possibly flipped) result is transmitted.
+                You can verify this in your browser's network inspector.
+            </p>
+            <p>
+                The fixed <strong>&delta;</strong> value represents the probability of a
+                complete privacy failure. In pure randomized response it plays no role, but is shown
+                for completeness of the (&epsilon;, &delta;)-DP framing.
+            </p>
+        </div>
+
+        <!-- Privacy caveat -->
+        <div class="card info-card" style="border-color: #4a3a1a;">
+            <h2 style="color: #ffb74d;">A note on privacy</h2>
+            <p>
+                This is not entirely differentially private, because we log the time of your
+                response. In theory, someone with access to the server could know that you were
+                accessing this page at a specific time and correlate that with a recorded response.
+                We won't do that. The 1-hour delay on aggregate results is a partial mitigation,
+                but it is not a complete solution.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        let questions = {};
+        let currentQuestion = "";
+        let selectedAnswer = null;
+        let fixedDelta = 1e-5;
+        let selectedEpsilon = 0.25;
+
+        const EPSILON_OPTIONS = [
+            { value: 0.05, label: "Strong", cls: "privacy-strong" },
+            { value: 0.1, label: "Good", cls: "privacy-good" },
+            { value: 0.25, label: "Moderate", cls: "privacy-moderate" },
+            { value: 0.5, label: "Low", cls: "privacy-low" },
+            { value: 1.0, label: "Minimal", cls: "privacy-minimal" },
+        ];
+
+        function getAnswered() {
+            try { return JSON.parse(localStorage.getItem("dp_answered") || "{}"); }
+            catch { return {}; }
+        }
+        function markAnswered(qid) {
+            const a = getAnswered();
+            a[qid] = Date.now();
+            localStorage.setItem("dp_answered", JSON.stringify(a));
+        }
+        function hasAnswered(qid) {
+            return !!getAnswered()[qid];
+        }
+
+        async function init() {
+            const res = await fetch("/api/questions");
+            const data = await res.json();
+            questions = data.questions;
+            currentQuestion = data.default;
+            fixedDelta = data.delta;
+            renderEpsilonPicker();
+            renderTabs();
+            showQuestion(currentQuestion);
+        }
+
+        function renderEpsilonPicker() {
+            const container = document.getElementById("epsilonOptions");
+            container.innerHTML = "";
+            for (const opt of EPSILON_OPTIONS) {
+                const btn = document.createElement("button");
+                btn.className = "eps-btn " + opt.cls + (opt.value === selectedEpsilon ? " active" : "");
+                btn.innerHTML = `<span class="eps-val">${opt.value}</span><span class="eps-label">${opt.label}</span>`;
+                btn.onclick = () => {
+                    selectedEpsilon = opt.value;
+                    renderEpsilonPicker();
+                };
+                container.appendChild(btn);
+            }
+        }
+
+        function renderTabs() {
+            const tabs = document.getElementById("questionTabs");
+            tabs.innerHTML = "";
+            for (const [id, text] of Object.entries(questions)) {
+                const btn = document.createElement("button");
+                let cls = "question-tab";
+                if (id === currentQuestion) cls += " active";
+                if (hasAnswered(id)) cls += " answered";
+                btn.className = cls;
+                btn.textContent = text;
+                btn.onclick = () => { currentQuestion = id; showQuestion(id); };
+                tabs.appendChild(btn);
+            }
+        }
+
+        function showQuestion(id) {
+            currentQuestion = id;
+            document.getElementById("questionText").textContent = questions[id];
+            renderTabs();
+            selectedAnswer = null;
+
+            const voteUI = document.getElementById("voteUI");
+            const already = document.getElementById("alreadyAnswered");
+            const reveal = document.getElementById("resultReveal");
+
+            if (hasAnswered(id)) {
+                voteUI.style.display = "none";
+                already.style.display = "block";
+                reveal.style.display = "none";
+            } else {
+                voteUI.style.display = "block";
+                already.style.display = "none";
+                reveal.style.display = "none";
+                document.getElementById("btnYes").className = "answer-btn";
+                document.getElementById("btnNo").className = "answer-btn";
+                document.getElementById("submitBtn").disabled = true;
+                document.getElementById("submitBtn").textContent = "Select an answer first";
+            }
+
+            loadResults();
+        }
+
+        function selectAnswer(answer) {
+            selectedAnswer = answer;
+            document.getElementById("btnYes").className = "answer-btn" + (answer === "yes" ? " selected-yes" : "");
+            document.getElementById("btnNo").className = "answer-btn" + (answer === "no" ? " selected-no" : "");
+            document.getElementById("submitBtn").disabled = false;
+            document.getElementById("submitBtn").textContent = "Submit (your response may be randomized)";
+        }
+
+        function randomizedResponse(trueAnswer, epsilon) {
+            const pTruth = Math.exp(epsilon) / (1 + Math.exp(epsilon));
+            if (Math.random() < pTruth) {
+                return { reported: trueAnswer, flipped: false, pTruth };
+            } else {
+                return { reported: trueAnswer === "yes" ? "no" : "yes", flipped: true, pTruth };
+            }
+        }
+
+        async function submitVote() {
+            if (!selectedAnswer) return;
+            const btn = document.getElementById("submitBtn");
+            btn.disabled = true;
+            btn.textContent = "Submitting...";
+
+            // Randomization happens entirely in the browser
+            const rr = randomizedResponse(selectedAnswer, selectedEpsilon);
+
+            // Only the randomized answer is sent to the server — true answer never leaves
+            const res = await fetch("/api/submit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    reported_answer: rr.reported,
+                    epsilon: selectedEpsilon,
+                    question_id: currentQuestion,
+                }),
+            });
+            await res.json();
+
+            markAnswered(currentQuestion);
+            renderTabs();
+
+            // Hide vote UI, show result
+            document.getElementById("voteUI").style.display = "none";
+
+            const reveal = document.getElementById("resultReveal");
+            reveal.style.display = "block";
+
+            document.getElementById("revealTrue").textContent = selectedAnswer.toUpperCase();
+            document.getElementById("revealTrue").style.color = selectedAnswer === "yes" ? "#4caf50" : "#ef5350";
+            document.getElementById("revealRecorded").textContent = rr.reported.toUpperCase();
+            document.getElementById("revealRecorded").style.color = rr.reported === "yes" ? "#4caf50" : "#ef5350";
+
+            const notice = document.getElementById("flippedNotice");
+            if (rr.flipped) {
+                notice.className = "flipped-notice was-flipped";
+                notice.textContent = "Your answer was flipped before recording.";
+            } else {
+                notice.className = "flipped-notice not-flipped";
+                notice.textContent = "Your answer was recorded as-is this time.";
+            }
+            notice.insertAdjacentHTML("afterend",
+                '<div style="font-size:0.8rem;color:#888;margin-top:0.4rem;">Either way, your privacy is protected \u2014 no one can know whether your recorded answer is real or flipped.</div>');
+
+            document.getElementById("resultMeta").textContent =
+                `\u03b5 = ${selectedEpsilon} | P(truth) = ${(rr.pTruth * 100).toFixed(1)}%`;
+
+            loadResults();
+        }
+
+        async function loadResults() {
+            const res = await fetch(`/api/results?question_id=${currentQuestion}`);
+            const data = await res.json();
+            const container = document.getElementById("aggregateResults");
+
+            if (data.total === 0) {
+                container.innerHTML = '<div class="no-results">No responses yet.</div>';
+                return;
+            }
+
+            const yesPct = ((data.reported_yes / data.total) * 100).toFixed(1);
+            const noPct = ((data.reported_no / data.total) * 100).toFixed(1);
+            const recentNote = data.all_recent
+                ? '<div style="font-size:0.78rem;color:#ffb74d;margin-top:0.4rem;">All responses are less than 1 hour old, so all are shown. Once older responses exist, only those will be displayed.</div>'
+                : '';
+
+            container.innerHTML = `
+                <div class="results-bar">
+                    <div class="yes-bar" style="width: ${yesPct}%">${yesPct}% Yes</div>
+                    <div class="no-bar" style="width: ${noPct}%">${noPct}% No</div>
+                </div>
+                <div class="results-meta">
+                    ${data.total} responses (noisy due to randomized response) | \u03b4 = ${data.delta}
+                </div>
+                ${recentNote}
+            `;
+        }
+
+        init();
+    </script>
+</body>
+</html>
