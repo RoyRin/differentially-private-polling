@@ -1,3 +1,4 @@
+local.db
 SECRETS/
 venv/
 __pycache__/

@@ -4,6 +4,7 @@ import os
 import random
 import sqlite3
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from flask import Flask, request, jsonify, send_file
 
 app = Flask(__name__)
@@ -14,7 +15,12 @@ def get_db():
     postgres_url = os.environ.get("POSTGRES_URL")
     if postgres_url:
         import pg8000
-        conn = pg8000.connect(dsn=postgres_url)
+        parsed = urlparse(postgres_url)
+        conn = pg8000.connect(
+            host=parsed.hostname, port=parsed.port or 5432,
+            user=parsed.username, password=parsed.password,
+            database=parsed.path.lstrip("/"), ssl_context=True,
+        )
         conn.autocommit = True
         return conn, "postgres"
     else:
