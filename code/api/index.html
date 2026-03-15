@@ -284,7 +284,7 @@
             <div class="already-answered" id="alreadyAnswered" style="display:none;">
                 <div class="icon">&#10003;</div>
                 <p>You've already answered this question.</p>
-                <p class="small">Each person should only answer once per question to keep results meaningful.</p>
+                <p class="small">You can answer again in a few minutes.</p>
             </div>
 
             <div class="result-reveal" id="resultReveal">
@@ -386,7 +386,9 @@
             localStorage.setItem("dp_answered", JSON.stringify(a));
         }
         function hasAnswered(qid) {
-            return !!getAnswered()[qid];
+            const t = getAnswered()[qid];
+            if (!t) return false;
+            return (Date.now() - t) < 5 * 60 * 1000; // 5 minute cooldown
         }
 
         async function init() {
